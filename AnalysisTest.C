@@ -82,6 +82,14 @@ void quickSort(int array[], int low, int high) {
   }
 }
 
+int getMedian(int arr[], int idx) {
+  int median;
+  quickSort(arr,0,idx); 										                // sort pos vaues
+  if (idx % 2 != 0) { median = ceil(arr[idx / 2]); }				// median of pos values
+  else { median = ceil((arr[(idx - 1) / 2] + arr[idx / 2]) / 2); }
+  return median;
+}
+
 void DC_analysis(){
     // Open the ROOT file
     TFile *file = TFile::Open("./data/Run34_DC1_Sweeper_00000_20240830130523_CALIB.root");
@@ -152,10 +160,8 @@ void DC_analysis(){
 			}
 			else {
 				// Find Median of array
-				for (int j = 0; j < ClusterIdx ; j++) { CLUSTERCOPY[j] = CLUSTERBUFFER[j][0]; } 		// copy pos values from buffer to copy arr
-				quickSort(CLUSTERCOPY,0,ClusterIdx); 													// sort pos vaues
-				if (ClusterIdx % 2 != 0) { median = ceil(CLUSTERCOPY[ClusterIdx / 2]); }				// median of pos values
-				else { median = floor((CLUSTERCOPY[(ClusterIdx - 1) / 2] + CLUSTERCOPY[ClusterIdx / 2]) / 2); }
+        for (int j = 0; j < ClusterIdx ; j++) { CLUSTERCOPY[j] = CLUSTERBUFFER[j][0]; } 
+        median = getMedian(CLUSTERCOPY,ClusterIdx); // find medain of positions
 
 				// Set ADC to zero if too far from median
 				for (int j = 0; j < ClusterIdx; j++) { 
