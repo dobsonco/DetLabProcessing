@@ -190,7 +190,7 @@ void DC_analysis(){
 				// Idk ask Juan
 				if (TotalADC > 300 & PositionAverage > 0 && PositionAverage < 256) {
 					h_ClusterNumber -> Fill( ClusterIdx ) ;
-        	if ( ClusterIdx > 4 & ClusterIdx < 10 ) { h_pos_adc_cluster -> Fill(PositionAverage, TotalADC) } ;
+        	if ( ClusterIdx > 4 & ClusterIdx < 10 ) { h_pos_adc_cluster -> Fill(PositionAverage, TotalADC); } ;
         }
 
 				// reset all flags/totals
