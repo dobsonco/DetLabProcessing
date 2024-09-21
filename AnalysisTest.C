@@ -84,7 +84,7 @@ void quickSort(int array[], int low, int high) {
 
 int getMedian(int arr[], int idx) {
   int median;
-  quickSort(arr,0,idx); 										                // sort pos vaues
+  quickSort(arr,0,idx); 										    // sort pos vaues
   if (idx % 2 != 0) { median = ceil(arr[idx / 2]); }				// median of pos values
   else { median = ceil((arr[(idx - 1) / 2] + arr[idx / 2]) / 2); }
   return median;
@@ -149,6 +149,13 @@ void DC_analysis(){
 				// Add adc and pos to buffer
 				CLUSTERBUFFER[ClusterIdx][0] = pos_val;
 				CLUSTERBUFFER[ClusterIdx][1] = adc_val;
+
+				// increment counters for pads 73 and 75
+				if ( pos_val == 73 ) {Pad73_flag +=1 ; Total_73 += adc_val ;}
+        if ( pos_val == 75 ) {Pad75_flag +=1 ; Total_75 += adc_val ;}
+
+				TotalADC += adc_val;
+
 				ClusterIdx ++;
 			}
 			else {
@@ -156,20 +163,15 @@ void DC_analysis(){
         for (int j = 0; j < ClusterIdx ; j++) { CLUSTERCOPY[j] = CLUSTERBUFFER[j][0]; } 
         median = getMedian(CLUSTERCOPY,ClusterIdx); // find medain of positions
 
-				// Set ADC and POS to zero if too far from median
+				// Set ADC to zero if too far from median
 				for (int j = 0; j < ClusterIdx; j++) { 
-					if ( abs( CLUSTERBUFFER[j][0] - median ) > 3  ) {
+					if (abs(CLUSTERBUFFER[j][0] - median) > 3) {
 						CLUSTERBUFFER[j][1] = 0;
-            CLUSTERBUFFER[j][0] = 0;
+						if (CLUSTERBUFFER[j][0] == 75) { Pad75_flag -= 1; Total_75 -= CLUSTERBUFFER[j][1]; }
+						if (CLUSTERBUFFER[j][0] == 73) { Pad73_flag -= 1; Total_73 -= CLUSTERBUFFER[j][1]; }
+            TotalADC -= CLUSTERBUFFER[j][1];
 						noiseCT ++;
 					}
-          else {
-            TotalADC += adc_val; // Increment adc value if data is "not" noise
-            
-            // increment counters for pads 73 and 75
-            if ( pos_val == 73 ) {Pad73_flag +=1 ; Total_73 += adc_val ;}
-            if ( pos_val == 75 ) {Pad75_flag +=1 ; Total_75 += adc_val ;}
-          }
 				}
 
 				// Use weighted average of 73 and 75 to guestimate 74 and add to total adc
@@ -182,9 +184,7 @@ void DC_analysis(){
 
 				// now that we have the total adc we can calculate the weighted position
 				for (int j = 0; j < ClusterIdx; j++) {
-          if (CLUSTERBUFFER[j][0] != 0 && CLUSTERBUFFER[j][1] != 0) {
-					  PositionAverage += CLUSTERBUFFER[j][0] * (CLUSTERBUFFER[j][1] / TotalADC);
-          }
+					PositionAverage += CLUSTERBUFFER[j][0] * (CLUSTERBUFFER[j][1] / TotalADC);
 				}
 
 				// Idk ask Juan
