@@ -135,11 +135,9 @@ void DC_analysis(){
     // Loop over all entries in the t_raw
     Long64_t nEntries = t_raw->GetEntries();
     for (Long64_t i = 0; i < nEntries; ++i) {
-        t_raw->GetEntry(i);
+      t_raw->GetEntry(i);
 
 		if (adc_val > 0 && pos_val > 0 && i > 0) {
-			evtCT++;
-
 			// find time diff
 			if (i > 0) {
 				D_time = abs(time_val - time_val_old) ; 
@@ -149,13 +147,6 @@ void DC_analysis(){
 				// Add adc and pos to buffer
 				CLUSTERBUFFER[ClusterIdx][0] = pos_val;
 				CLUSTERBUFFER[ClusterIdx][1] = adc_val;
-
-				// increment counters for pads 73 and 75
-				if ( pos_val == 73 ) {Pad73_flag +=1 ; Total_73 += adc_val ;}
-        if ( pos_val == 75 ) {Pad75_flag +=1 ; Total_75 += adc_val ;}
-
-				TotalADC += adc_val;
-
 				ClusterIdx ++;
 			}
 			else {
@@ -163,21 +154,26 @@ void DC_analysis(){
         for (int j = 0; j < ClusterIdx ; j++) { CLUSTERCOPY[j] = CLUSTERBUFFER[j][0]; } 
         median = getMedian(CLUSTERCOPY,ClusterIdx); // find medain of positions
 
-				// Set ADC to zero if too far from median
-				for (int j = 0; j < ClusterIdx; j++) { 
-					if (abs(CLUSTERBUFFER[j][0] - median) > 3) {
-						CLUSTERBUFFER[j][1] = 0;
-						if (CLUSTERBUFFER[j][0] == 75) { Pad75_flag -= 1; Total_75 -= CLUSTERBUFFER[j][1]; }
-						if (CLUSTERBUFFER[j][0] == 73) { Pad73_flag -= 1; Total_73 -= CLUSTERBUFFER[j][1]; }
-            TotalADC -= CLUSTERBUFFER[j][1];
-						noiseCT ++;
-					}
-				}
+        // remove noise and count adc
+        for (int j = 0; j < ClusterIdx; j++) {
+          if (abs(CLUSTERBUFFER[j][0] - median) <= 4) {
+            TotalADC += CLUSTERBUFFER[j][1];
+            if ( CLUSTERBUFFER[j][0] == 73 ) {Pad73_flag +=1 ; Total_73 += CLUSTERBUFFER[j][1];}
+            if ( CLUSTERBUFFER[j][0] == 75 ) {Pad75_flag +=1 ; Total_75 += CLUSTERBUFFER[j][1];}
+            evtCT++;
+          }
+          else {
+            CLUSTERBUFFER[j][1] = 0;
+            CLUSTERBUFFER[j][0] = 0;
+            noiseCT++;
+          }
+        }
 
 				// Use weighted average of 73 and 75 to guestimate 74 and add to total adc
 				if (Pad73_flag > 0 && Pad75_flag > 0) {
 					Pad7375_flagsum = Pad73_flag + Pad75_flag;
-					Pad_74ADC = (((Pad73_flag / Pad7375_flagsum)*Total_73)+((Pad75_flag / Pad7375_flagsum)*Total_75));
+					//Pad_74ADC = (((Pad73_flag / Pad7375_flagsum)*Total_73)+((Pad75_flag / Pad7375_flagsum)*Total_75));
+          Pad_74ADC = (Total_73 + Total_75) / 2;
 					TotalADC += Pad_74ADC;
 					PositionAverage += 74. * (Pad_74ADC / TotalADC);
 				}
