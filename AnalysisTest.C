@@ -125,15 +125,11 @@ void DC_analysis(){
   double leftADC = 0;
   double rightADC = 0;
   double BrokenPadADC = 0;
-  // double Pad73_flag = 0; 		// num times pad 73 shows up in buffer
-  // double Pad75_flag = 0;		// num times pad 75 shows up in buffer
-  // double Pad7375_flagsum = 0;
-  // double Total_73 = 0; 		// Total for pad 73 because pad 74 is broken
-  // double Total_75 = 0; 		// Total for pad 75 because pad 74 is broken
-  // double Pad_74ADC = 0; 		// Guess for value of pad 74 if it was working
-  int median;
   double noiseCT = 0;
   double evtCT = 0; 
+  int median;
+  int ptemp;
+  int adctemp;
 
   // broken pad vars
   int BROKENPADS[] = {17,19,21,74,160}; // array of all numbers of broken pads
@@ -170,17 +166,14 @@ void DC_analysis(){
 
         // remove noise and count adc
         for (int j = 0; j < ClusterIdx; j++) {
-          if (abs(CLUSTERBUFFER[j][0] - median) <= 4) {
-            TotalADC += CLUSTERBUFFER[j][1];
-            // if ( CLUSTERBUFFER[j][0] == 73 ) {Pad73_flag +=1 ; Total_73 += CLUSTERBUFFER[j][1];}
-            // if ( CLUSTERBUFFER[j][0] == 75 ) {Pad75_flag +=1 ; Total_75 += CLUSTERBUFFER[j][1];}
+          ptemp = CLUSTERBUFFER[j][0];
+          adctemp = CLUSTERBUFFER[j][1];
+          if (abs(ptemp - median) <= 4) {
+            TotalADC += adctemp;
             evtCT++;
 
-            //experimental
-            if (ISBROKEN[pos_val]) { // if pos_val is next to a broken one, add adc to its corresponding count
-              BROKENPADSUMS[pos_val] += adc_val; 
-              // cout << "BROKENPADSUMS[pos_val] = " << BROKENPADSUMS[pos_val] <<  ", pos = " << pos_val << endl;
-              // cout << "broken pad found" << endl;
+            if (ISBROKEN[ptemp]) { // if pos_val is next to a broken one, add adc to its corresponding count
+              BROKENPADSUMS[ptemp] += adctemp; 
             } 
           }
           else {
@@ -190,16 +183,6 @@ void DC_analysis(){
           }
         }
 
-        // Use weighted average of 73 and 75 to guestimate 74 and add to total adc
-        // if (Pad73_flag > 0 && Pad75_flag > 0) {
-        //   Pad7375_flagsum = Pad73_flag + Pad75_flag;
-        //   //Pad_74ADC = (((Pad73_flag / Pad7375_flagsum)*Total_73)+((Pad75_flag / Pad7375_flagsum)*Total_75));
-        //   Pad_74ADC = (Total_73 + Total_75) / 2;
-        //   TotalADC += Pad_74ADC;
-        //   PositionAverage += 74. * (Pad_74ADC / TotalADC);
-        // }
-
-        // EXPERIMENTAL
         // Loop over all broken pads, interpolate and add to weighted position of event
         // 0: count / 1: adc
         for (int j = 0; j < length; j++) {
@@ -226,10 +209,6 @@ void DC_analysis(){
         // reset all flags/totals
         PositionAverage = 0;
         TotalADC = 0;
-        // Total_73 = 0;
-        // Total_75 = 0;
-        // Pad73_flag = 0;
-        // Pad75_flag = 0;
         ClusterIdx = 0;
         leftADC = 0;
         rightADC = 0;
