@@ -27,8 +27,6 @@
 #include "TStreamerInfo.h"
 #include "Bytes.h"
 #include "TSystem.h"
-#include <vector>
-#include <algorithm>
 using namespace std;
 
 // function to swap elements
@@ -124,12 +122,15 @@ void DC_analysis(){
   double time_val_old; 		// value defined in first loop if adc > (some val) and pos > 0
   double PositionAverage = 0;
   double TotalADC = 0;
-  double Pad73_flag = 0; 		// num times pad 73 shows up in buffer
-  double Pad75_flag = 0;		// num times pad 75 shows up in buffer
-  double Pad7375_flagsum = 0;
-  double Total_73 = 0; 		// Total for pad 73 because pad 74 is broken
-  double Total_75 = 0; 		// Total for pad 75 because pad 74 is broken
-  double Pad_74ADC = 0; 		// Guess for value of pad 74 if it was working
+  double leftADC = 0;
+  double rightADC = 0;
+  double BrokenPadADC = 0;
+  // double Pad73_flag = 0; 		// num times pad 73 shows up in buffer
+  // double Pad75_flag = 0;		// num times pad 75 shows up in buffer
+  // double Pad7375_flagsum = 0;
+  // double Total_73 = 0; 		// Total for pad 73 because pad 74 is broken
+  // double Total_75 = 0; 		// Total for pad 75 because pad 74 is broken
+  // double Pad_74ADC = 0; 		// Guess for value of pad 74 if it was working
   int median;
   double noiseCT = 0;
   double evtCT = 0; 
@@ -138,12 +139,12 @@ void DC_analysis(){
   int BROKENPADS[] = {17,19,21,74,160}; // array of all numbers of broken pads
   int length = sizeof(BROKENPADS)/sizeof(BROKENPADS[0]);
   bool ISBROKEN[257] = {false}; // create bool array of t/f that correspond to broken pads
-  for (int i = 0; i < length; i++) { // assign pads next to broken ones to be true
-    ISBROKEN[BROKENPADS[i]] = true; 
-    ISBROKEN[BROKENPADS[i]-1] = true; 
-    ISBROKEN[BROKENPADS[i]+1] = true;
+  for (int j = 0; j < length; j++) { // assign pads next to broken ones to be true
+    ISBROKEN[BROKENPADS[j]] = true; 
+    ISBROKEN[BROKENPADS[j]-1] = true; 
+    ISBROKEN[BROKENPADS[j]+1] = true;
   } 
-  int BROKENPADSUMS[257][2] = {0}; // 0: num counts / 1: total adc
+  int BROKENPADSUMS[257] = {0}; // total adc for pads next to broken ones
 
   // Loop over all entries in the t_raw
   Long64_t nEntries = t_raw->GetEntries();
@@ -171,12 +172,16 @@ void DC_analysis(){
         for (int j = 0; j < ClusterIdx; j++) {
           if (abs(CLUSTERBUFFER[j][0] - median) <= 4) {
             TotalADC += CLUSTERBUFFER[j][1];
-            if ( CLUSTERBUFFER[j][0] == 73 ) {Pad73_flag +=1 ; Total_73 += CLUSTERBUFFER[j][1];}
-            if ( CLUSTERBUFFER[j][0] == 75 ) {Pad75_flag +=1 ; Total_75 += CLUSTERBUFFER[j][1];}
+            // if ( CLUSTERBUFFER[j][0] == 73 ) {Pad73_flag +=1 ; Total_73 += CLUSTERBUFFER[j][1];}
+            // if ( CLUSTERBUFFER[j][0] == 75 ) {Pad75_flag +=1 ; Total_75 += CLUSTERBUFFER[j][1];}
             evtCT++;
 
             //experimental
-            if (ISBROKEN[pos_val]) {BROKENPADSUMS[pos_val][1] += adc_val; BROKENPADSUMS[pos_val][0] += 1;} // if pos_val is next to a broken one, add adc to its corresponding count
+            if (ISBROKEN[pos_val]) { // if pos_val is next to a broken one, add adc to its corresponding count
+              BROKENPADSUMS[pos_val] += adc_val; 
+              // cout << "BROKENPADSUMS[pos_val] = " << BROKENPADSUMS[pos_val] <<  ", pos = " << pos_val << endl;
+              // cout << "broken pad found" << endl;
+            } 
           }
           else {
             CLUSTERBUFFER[j][1] = 0;
@@ -186,12 +191,25 @@ void DC_analysis(){
         }
 
         // Use weighted average of 73 and 75 to guestimate 74 and add to total adc
-        if (Pad73_flag > 0 && Pad75_flag > 0) {
-          Pad7375_flagsum = Pad73_flag + Pad75_flag;
-          //Pad_74ADC = (((Pad73_flag / Pad7375_flagsum)*Total_73)+((Pad75_flag / Pad7375_flagsum)*Total_75));
-          Pad_74ADC = (Total_73 + Total_75) / 2;
-          TotalADC += Pad_74ADC;
-          PositionAverage += 74. * (Pad_74ADC / TotalADC);
+        // if (Pad73_flag > 0 && Pad75_flag > 0) {
+        //   Pad7375_flagsum = Pad73_flag + Pad75_flag;
+        //   //Pad_74ADC = (((Pad73_flag / Pad7375_flagsum)*Total_73)+((Pad75_flag / Pad7375_flagsum)*Total_75));
+        //   Pad_74ADC = (Total_73 + Total_75) / 2;
+        //   TotalADC += Pad_74ADC;
+        //   PositionAverage += 74. * (Pad_74ADC / TotalADC);
+        // }
+
+        // EXPERIMENTAL
+        // Loop over all broken pads, interpolate and add to weighted position of event
+        // 0: count / 1: adc
+        for (int j = 0; j < length; j++) {
+          if ((BROKENPADSUMS[BROKENPADS[j]-1] == 0) && (BROKENPADSUMS[BROKENPADS[j]+1] == 0)) {continue;}
+          // cout << "processing broken pad" << endl;
+          leftADC  = BROKENPADSUMS[BROKENPADS[j]-1];
+          rightADC = BROKENPADSUMS[BROKENPADS[j]+1];
+          BrokenPadADC = (leftADC + rightADC) / 2;
+          TotalADC += BrokenPadADC;
+          PositionAverage += BROKENPADS[j] * (BrokenPadADC / TotalADC);
         }
 
         // now that we have the total adc we can calculate the weighted position
@@ -208,11 +226,14 @@ void DC_analysis(){
         // reset all flags/totals
         PositionAverage = 0;
         TotalADC = 0;
-        Total_73 = 0;
-        Total_75 = 0;
-        Pad73_flag = 0;
-        Pad75_flag = 0;
+        // Total_73 = 0;
+        // Total_75 = 0;
+        // Pad73_flag = 0;
+        // Pad75_flag = 0;
         ClusterIdx = 0;
+        leftADC = 0;
+        rightADC = 0;
+        BrokenPadADC = 0;
 
         // because we skipped this event we add it to the buffer here
         CLUSTERBUFFER[ClusterIdx][0] = pos_val;
@@ -220,13 +241,14 @@ void DC_analysis(){
         TotalADC += adc_val;
         ClusterIdx++;
 
-        for (int i = 0; i < length; i++) { // set sums back to zero
-          BROKENPADSUMS[BROKENPADS[i]][0] = 0; 
-          BROKENPADSUMS[BROKENPADS[i]-1][0] = 0; 
-          BROKENPADSUMS[BROKENPADS[i]+1][0] = 0;
-          BROKENPADSUMS[BROKENPADS[i]][1] = 0; 
-          BROKENPADSUMS[BROKENPADS[i]-1][1] = 0; 
-          BROKENPADSUMS[BROKENPADS[i]+1][1] = 0;
+        for (int j = 0; j < length; j++) { // set sums back to zero
+          BROKENPADSUMS[BROKENPADS[j]] = 0; 
+          BROKENPADSUMS[BROKENPADS[j]-1] = 0; 
+          BROKENPADSUMS[BROKENPADS[j]+1] = 0;
+
+          BROKENPADSUMS[BROKENPADS[j]] = 0; 
+          BROKENPADSUMS[BROKENPADS[j]-1] = 0; 
+          BROKENPADSUMS[BROKENPADS[j]+1] = 0;
         } 
       }
 
