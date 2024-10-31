@@ -90,6 +90,50 @@ int getMedian(int arr[], int idx) {
   return median;
 }
 
+double RemoveNoiseAndCountADC(int BUFFER[][2], int idx, int median, int BROKENPADSUMS[], bool ISBROKEN[]) {
+  int ptemp, adctemp;
+  double TotalADC;
+  for (int j = 0; j < idx; j++) {
+    ptemp = BUFFER[j][0];
+    adctemp = BUFFER[j][1];
+    if (abs(ptemp - median) <= 4) {
+      TotalADC += adctemp;
+
+      if (ISBROKEN[ptemp]) { // if pos_val is next to a broken one, add adc to its corresponding count
+        BROKENPADSUMS[ptemp] += adctemp; 
+      }
+    }
+
+    else {
+      BUFFER[j][1] = 0;
+      BUFFER[j][0] = 0;
+    }
+  }
+  return TotalADC;
+}
+
+double AveragePosition(int BUFFER[][2],int ClusterIdx,double TotalADC,double PositionAverage){
+  for (int j = 0; j < ClusterIdx; j++) {
+    PositionAverage += BUFFER[j][0] * (BUFFER[j][1] / TotalADC);
+  }
+  return PositionAverage;
+}
+
+double BrokenPadPos(int BROKENPADSUMS[], int BROKENPADS[], int length, double* TotalADC){
+  // Im just going to go ahead and apologize for making this function so poorly
+  double leftADC, rightADC, BrokenPadADC, PositionAverage, tempADC;
+  for (int j = 0; j < length; j++) {
+    if ((BROKENPADSUMS[BROKENPADS[j]-1] == 0) && (BROKENPADSUMS[BROKENPADS[j]+1] == 0)) {continue;}
+    leftADC  = BROKENPADSUMS[BROKENPADS[j]-1];
+    rightADC = BROKENPADSUMS[BROKENPADS[j]+1];
+    BrokenPadADC = (leftADC + rightADC) / 2;
+    *TotalADC += BrokenPadADC;
+    tempADC = *TotalADC;
+    PositionAverage += BROKENPADS[j] * (BrokenPadADC / tempADC);
+  }
+  return PositionAverage;
+}
+
 void DC_analysis(){
   // Open the ROOT file
   TFile *file = TFile::Open("./data/Run34_DC1_Sweeper_00000_20240830130523_CALIB.root");
@@ -103,11 +147,13 @@ void DC_analysis(){
   UShort_t tdc_val ;
   Double_t time_val ;
   Double_t D_time ;
+  // int32_t det_no; <- uncomment this for silicon triggered data
   
-  t_raw->SetBranchAddress("hits.pos", &pos_val);
-  t_raw->SetBranchAddress("hits.adc", &adc_val);
-  t_raw->SetBranchAddress("hits.tdc", &tdc_val);
+  t_raw->  SetBranchAddress("hits.pos", &pos_val);
+  t_raw->  SetBranchAddress("hits.adc", &adc_val);
+  t_raw->  SetBranchAddress("hits.tdc", &tdc_val);
   t_raw->SetBranchAddress("hits.time", &time_val);
+  //t_raw->SetBranchAddress("hits.time", &det_no); <- uncomment this for silicon triggered data
 
   TH2F *h_pos_adc_raw     = new TH2F( "h_pos_adc_raw"    , "h_pos_adc_raw"    , 256, 0, 256, 750 , 0, 2500 ) ;
   TH2F *h_pos_adc_cluster = new TH2F( "h_pos_adc_cluster", "h_pos_adc_cluster", 256, 0, 256, 1500, 0, 5000 ) ;
@@ -121,17 +167,14 @@ void DC_analysis(){
   // miscellaneous variables
   double time_val_old; 		// value defined in first loop if adc > (some val) and pos > 0
   double PositionAverage = 0;
+  double BrokenPadPosAve = 0;
   double TotalADC = 0;
-  double leftADC = 0;
-  double rightADC = 0;
-  double BrokenPadADC = 0;
-  double noiseCT = 0;
-  double evtCT = 0; 
   int median;
   int ptemp;
   int adctemp;
 
   // broken pad vars
+  int BROKENPADSUMS[257] = {0}; // total adc for pads next to broken ones
   int BROKENPADS[] = {17,19,21,74,160}; // array of all numbers of broken pads
   int length = sizeof(BROKENPADS)/sizeof(BROKENPADS[0]);
   bool ISBROKEN[257] = {false}; // create bool array of t/f that correspond to broken pads
@@ -140,7 +183,10 @@ void DC_analysis(){
     ISBROKEN[BROKENPADS[j]-1] = true; 
     ISBROKEN[BROKENPADS[j]+1] = true;
   } 
-  int BROKENPADSUMS[257] = {0}; // total adc for pads next to broken ones
+
+  // time reconstruction vars
+  double TIMEBUFFER[10];
+  int time_idx = 0;
 
   // Loop over all entries in the t_raw
   Long64_t nEntries = t_raw->GetEntries();
@@ -165,40 +211,13 @@ void DC_analysis(){
         median = getMedian(CLUSTERCOPY,ClusterIdx); // find medain of positions
 
         // remove noise and count adc
-        for (int j = 0; j < ClusterIdx; j++) {
-          ptemp = CLUSTERBUFFER[j][0];
-          adctemp = CLUSTERBUFFER[j][1];
-          if (abs(ptemp - median) <= 4) {
-            TotalADC += adctemp;
-            evtCT++;
+        TotalADC = RemoveNoiseAndCountADC(CLUSTERBUFFER,ClusterIdx,median,BROKENPADSUMS,ISBROKEN);
 
-            if (ISBROKEN[ptemp]) { // if pos_val is next to a broken one, add adc to its corresponding count
-              BROKENPADSUMS[ptemp] += adctemp; 
-            } 
-          }
-          else {
-            CLUSTERBUFFER[j][1] = 0;
-            CLUSTERBUFFER[j][0] = 0;
-            noiseCT++;
-          }
-        }
-
-        // Loop over all broken pads, interpolate and add to weighted position of event
-        // 0: count / 1: adc
-        for (int j = 0; j < length; j++) {
-          if ((BROKENPADSUMS[BROKENPADS[j]-1] == 0) && (BROKENPADSUMS[BROKENPADS[j]+1] == 0)) {continue;}
-          // cout << "processing broken pad" << endl;
-          leftADC  = BROKENPADSUMS[BROKENPADS[j]-1];
-          rightADC = BROKENPADSUMS[BROKENPADS[j]+1];
-          BrokenPadADC = (leftADC + rightADC) / 2;
-          TotalADC += BrokenPadADC;
-          PositionAverage += BROKENPADS[j] * (BrokenPadADC / TotalADC);
-        }
+        // Loop over all broken pads, interpolate and add to weighted position of event, also adds up the broken pad adc
+        BrokenPadPosAve = BrokenPadPos(BROKENPADSUMS,BROKENPADS,length,&TotalADC);
 
         // now that we have the total adc we can calculate the weighted position
-        for (int j = 0; j < ClusterIdx; j++) {
-          PositionAverage += CLUSTERBUFFER[j][0] * (CLUSTERBUFFER[j][1] / TotalADC);
-        }
+        PositionAverage = AveragePosition(CLUSTERBUFFER,ClusterIdx,TotalADC,BrokenPadPosAve);
 
         // Idk ask Juan
         if (TotalADC > 300 & PositionAverage > 0 && PositionAverage < 256) {
@@ -210,9 +229,6 @@ void DC_analysis(){
         PositionAverage = 0;
         TotalADC = 0;
         ClusterIdx = 0;
-        leftADC = 0;
-        rightADC = 0;
-        BrokenPadADC = 0;
 
         // because we skipped this event we add it to the buffer here
         CLUSTERBUFFER[ClusterIdx][0] = pos_val;
@@ -220,7 +236,8 @@ void DC_analysis(){
         TotalADC += adc_val;
         ClusterIdx++;
 
-        for (int j = 0; j < length; j++) { // set sums back to zero
+        // set sums back to zero
+        for (int j = 0; j < length; j++) { 
           BROKENPADSUMS[BROKENPADS[j]] = 0; 
           BROKENPADSUMS[BROKENPADS[j]-1] = 0; 
           BROKENPADSUMS[BROKENPADS[j]+1] = 0;
@@ -236,8 +253,6 @@ void DC_analysis(){
       h_pos_adc_raw -> Fill(pos_val, adc_val);
     }
   }
-    
-  cout << "Noise %: " << noiseCT / evtCT * 100 << endl;
 
   TCanvas *C1 = new TCanvas("C1", "C1", 1000, 1000 ) ;
   C1 -> Divide(1,2);
