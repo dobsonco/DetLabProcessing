@@ -26,11 +26,6 @@ double getMedian(vector<int> posvals) {
   vector<int> poscopy(len,0);
   copy(posvals.begin(),posvals.end(),poscopy.begin());
   sort(poscopy.begin(),poscopy.end());
-
-  // for (int i = 0; i < len; i++) {
-  //   cout << "poscopy[i]: " << poscopy[i] <<  endl;
-  // }
-
   if (len % 2 != 0) { median = poscopy[len / 2]; }
   else { median = (poscopy[(len - 1) / 2] + poscopy[len / 2]) / 2; }
   return median;
@@ -119,21 +114,6 @@ double AverageTime(Cluster cluster) {
   }
   return TimeAverage;
 }
-
-// double BrokenPadPos(int BROKENPADSUMS[], int BROKENPADS[], int length, double* TotalADC){
-//   // Im just going to go ahead and apologize for making this function so poorly
-//   double leftADC, rightADC, BrokenPadADC, PositionAverage, tempADC;
-//   for (int j = 0; j < length; j++) {
-//     if ((BROKENPADSUMS[BROKENPADS[j]-1] == 0) && (BROKENPADSUMS[BROKENPADS[j]+1] == 0)) {continue;}
-//     leftADC  = BROKENPADSUMS[BROKENPADS[j]-1];
-//     rightADC = BROKENPADSUMS[BROKENPADS[j]+1];
-//     BrokenPadADC = (leftADC + rightADC) / 2;
-//     *TotalADC += BrokenPadADC;
-//     tempADC = *TotalADC;
-//     PositionAverage += BROKENPADS[j] * (BrokenPadADC / tempADC);
-//   }
-//   return PositionAverage;
-// }
 
 double getDriftTime(double RINGBUFFER[],double ClusterTime, int ring_max_idx) {
   double DELTATIME[ring_max_idx+1];
@@ -268,15 +248,14 @@ void DC_analysis(){
 
         // clear cluster vectors
         reset: ResetCluster(&ClusterTemp);
-
+        // set sums back to zero
+        ResetBrokenPadSumsTimes(&BPI);
+        
         // because we skipped this event we add it to the buffer here
         ClusterTemp.pos.push_back(pos_val);
         ClusterTemp.adc.push_back(adc_val);
         ClusterTemp.time.push_back(time_val);
         ClusterTemp.TotalADC += adc_val;
-
-        // set sums back to zero
-        ResetBrokenPadSumsTimes(&BPI);
       }
 
       // update hist
